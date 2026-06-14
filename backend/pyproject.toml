@@ -1,0 +1,23 @@
+[project]
+name = "3dgs-backend"
+version = "0.1.0"
+description = "FastAPI backend for 3DGS reconstruction system"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "aiofiles>=24.1",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "pillow>=10.4",
+    "numpy>=1.26,<2.0",
+    "plyfile>=1.0",
+]
+
+# torch / torchvision / gsplat 由独立索引安装（见 README 部署说明），不在此处声明
+# torch==2.4.1+cu118  --index-url https://download.pytorch.org/whl/cu118
+# gsplat==1.5.2+pt24cu118  (https://docs.gsplat.studio/whl/pt24cu118)
+
+[tool.uv]
+package = false
