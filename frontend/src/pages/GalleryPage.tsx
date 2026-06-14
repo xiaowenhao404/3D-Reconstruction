@@ -15,11 +15,7 @@ const SAMPLE_MODELS: SplatModel[] = [
     source: 'bundled',
     format: 'splat',
     url: '/models/sample.splat',
-    viewerDefaults: {
-      cameraUp: [0, -1, 0],
-      initialCameraPosition: [-1, -4, 6],
-      initialCameraLookAt: [0, 0, 0],
-    },
+    // 不指定相机参数 → 由查看器按包围盒自动框住模型
   },
 ];
 
