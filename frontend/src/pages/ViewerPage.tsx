@@ -13,6 +13,7 @@ export default function ViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [alphaInput, setAlphaInput] = useState(5);
   const [appliedAlpha, setAppliedAlpha] = useState(5);
+  const [freeTumble, setFreeTumble] = useState(false);
 
   if (!model) {
     return (
@@ -34,6 +35,7 @@ export default function ViewerPage() {
         url={model.url}
         format={model.format}
         alphaThreshold={appliedAlpha}
+        freeTumble={freeTumble}
         viewerDefaults={model.viewerDefaults}
         onStats={setStats}
         onLoaded={() => setLoaded(true)}
@@ -62,7 +64,20 @@ export default function ViewerPage() {
       {/* 底部控制条 */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl bg-black/60 px-4 py-3 text-xs text-slate-300 backdrop-blur">
         <div className="flex items-center gap-4">
-          <span>左键旋转 · 右键平移 · 滚轮缩放</span>
+          <span>
+            {freeTumble ? '左键自由翻滚 · 右键平移 · 滚轮缩放' : '左键旋转 · 右键平移 · 滚轮缩放'}
+          </span>
+          <button
+            onClick={() => setFreeTumble((v) => !v)}
+            className={`rounded px-2 py-1 transition ${
+              freeTumble
+                ? 'bg-accent text-white'
+                : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+            }`}
+            title="自由翻滚模式：纵向也可无限翻转（Trackball）"
+          >
+            自由翻滚 {freeTumble ? '开' : '关'}
+          </button>
           <div className="flex items-center gap-2">
             <span>剔除阈值 {alphaInput}</span>
             <input

@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 import type { SplatFormat, ViewerDefaults } from '@/types';
 
@@ -21,6 +23,8 @@ interface SplatViewerProps {
   format: SplatFormat;
   /** 不透明度剔除阈值 0-255，过滤边缘飞散噪点 */
   alphaThreshold?: number;
+  /** 自由翻滚：true=TrackballControls(任意方向翻滚) / false=OrbitControls(纵向限位、更稳) */
+  freeTumble?: boolean;
   viewerDefaults?: ViewerDefaults;
   onStats?: (s: ViewerStats) => void;
   onLoaded?: () => void;
@@ -28,22 +32,31 @@ interface SplatViewerProps {
 }
 
 /**
- * 3DGS 拖拽查看器。封装 @mkkellogg/gaussian-splats-3d 的命令式 Viewer：
- * 内置 OrbitControls（左键旋转 / 右键平移 / 滚轮缩放），挂载即渲染，卸载即释放 GPU。
+ * 3DGS 拖拽查看器。封装 @mkkellogg/gaussian-splats-3d 的命令式 Viewer，
+ * 并自管相机控制器以支持「自由翻滚」开关：
+ *   - OrbitControls：左键旋转 / 右键平移 / 滚轮缩放，纵向限位防颠倒（默认）
+ *   - TrackballControls：任意方向自由翻滚
  * 复用其渲染管线，不自写 splat 光栅化。
  */
 export default function SplatViewer({
   url,
   format,
   alphaThreshold = 5,
+  freeTumble = false,
   viewerDefaults,
   onStats,
   onLoaded,
   onError,
-}: SplatViewerProps) {
+}: Readonly<SplatViewerProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const viewerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
+  const frameCenterRef = useRef(new THREE.Vector3());
+  const [ready, setReady] = useState(false);
 
-  // url / format / alphaThreshold 变化时重建查看器（alpha 需重载场景才能生效）
+  // ── 创建查看器并加载场景（依赖 url/format/alpha；切换控制器不触发重载） ──
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -52,19 +65,22 @@ export default function SplatViewer({
     let rafId = 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let viewer: any = null;
+    setReady(false);
 
     try {
       viewer = new GaussianSplats3D.Viewer({
         rootElement: container,
         // 关闭共享内存可避免对 COOP/COEP 跨域隔离响应头的依赖
         sharedMemoryForWorkers: false,
-        useBuiltInControls: true,
-        // GPU 排序在部分驱动/浏览器组合下静默失效导致 splat 不渲染，改用 WASM CPU 排序更稳
+        // 自管控制器（见下方 effect），以支持 Orbit/Trackball 切换
+        useBuiltInControls: false,
+        // GPU 排序在部分驱动/浏览器组合下静默失效导致 splat 不渲染，改用 WASM 排序更稳
         gpuAcceleratedSort: false,
         cameraUp: viewerDefaults?.cameraUp ?? [0, 1, 0],
         initialCameraPosition: viewerDefaults?.initialCameraPosition ?? [0, -1, 6],
         initialCameraLookAt: viewerDefaults?.initialCameraLookAt ?? [0, 0, 0],
       });
+      viewerRef.current = viewer;
 
       viewer
         .addSplatScene(url, {
@@ -90,8 +106,9 @@ export default function SplatViewer({
               console.error('[SplatViewer] autoFrame 失败:', err);
             }
           }
+          setReady(true);
           onLoaded?.();
-          runStatsLoop();
+          runLoop();
         })
         .catch((e: unknown) => {
           if (!disposed) onError?.(e instanceof Error ? e.message : String(e));
@@ -100,13 +117,14 @@ export default function SplatViewer({
       onError?.(e instanceof Error ? e.message : String(e));
     }
 
-    /** 计算模型包围盒，把相机摆到能完整看到模型的位置 */
+    /** 计算模型包围盒，把相机摆到能完整看到模型的位置，并记录中心点 */
     function autoFrame() {
       const box: THREE.Box3 = viewer.splatMesh.computeBoundingBox(true);
       const center = new THREE.Vector3();
       const size = new THREE.Vector3();
       box.getCenter(center);
       box.getSize(size);
+      frameCenterRef.current.copy(center);
       const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
       const cam = viewer.camera;
       const fov = ((cam.fov ?? 60) * Math.PI) / 180;
@@ -115,17 +133,14 @@ export default function SplatViewer({
       cam.position.copy(center.clone().add(dir.multiplyScalar(dist)));
       cam.lookAt(center);
       cam.updateProjectionMatrix?.();
-      if (viewer.controls) {
-        viewer.controls.target.copy(center);
-        viewer.controls.update();
-      }
     }
 
-    function runStatsLoop() {
+    function runLoop() {
       let frames = 0;
       let last = performance.now();
       const tick = () => {
         frames += 1;
+        controlsRef.current?.update();
         const now = performance.now();
         if (now - last >= 1000) {
           let splatCount = 0;
@@ -151,10 +166,53 @@ export default function SplatViewer({
       } catch {
         /* ignore */
       }
+      viewerRef.current = null;
       if (container) container.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, format, alphaThreshold]);
+
+  // ── 控制器：根据 freeTumble 在 Orbit / Trackball 间切换（不重载模型） ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!ready || !viewer?.camera || !viewer?.renderer) return;
+    const dom = viewer.renderer.domElement;
+    const center = frameCenterRef.current;
+    let onResize: (() => void) | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let controls: any;
+
+    if (freeTumble) {
+      controls = new TrackballControls(viewer.camera, dom);
+      controls.rotateSpeed = 10.5;
+      controls.zoomSpeed = 1.2;
+      controls.panSpeed = 0.8;
+      controls.staticMoving = true; // 关闭惯性，旋转更跟手
+      controls.target.copy(center);
+      controls.handleResize?.();
+      onResize = () => controls.handleResize?.();
+      window.addEventListener('resize', onResize);
+    } else {
+      controls = new OrbitControls(viewer.camera, dom);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.1;
+      controls.rotateSpeed = 0.5; // 降低默认过快的旋转速度
+      controls.zoomSpeed = 0.8;
+      controls.target.copy(center);
+    }
+    controls.update();
+    controlsRef.current = controls;
+
+    return () => {
+      if (onResize) window.removeEventListener('resize', onResize);
+      try {
+        controls.dispose?.();
+      } catch {
+        /* ignore */
+      }
+      if (controlsRef.current === controls) controlsRef.current = null;
+    };
+  }, [freeTumble, ready]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }
