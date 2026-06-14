@@ -1,0 +1,58 @@
+# ===== 大文件 / 运行产物 (绝不进 Git) =====
+workspace/*
+!workspace/.gitkeep
+datasets/
+third_party/
+*.ply
+*.splat
+*.ksplat
+*.db
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.uv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Node / 前端 =====
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+.npmrc
+
+# ===== 环境与密钥 =====
+.env
+.env.*
+!.env.example
+settings.json
+*.pem
+*.key
+
+# ===== 编辑器 / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# ===== 临时 =====
+temp/
+tmp/
+*.tmp
+
+# ===== Claude Code 项目工具 (另一项目遗留, 不属于本系统交付物) =====
+.claude/
+plan/
+
