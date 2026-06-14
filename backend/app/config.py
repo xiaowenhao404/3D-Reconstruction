@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     # ── 外部工具 ──
     # 训练用 Python（backend/.venv，含 torch+gsplat）
     train_python: Path = PROJECT_ROOT / "backend" / ".venv" / "Scripts" / "python.exe"
-    # gsplat 仓库（提供 examples/simple_trainer.py）
+    # 自研精简训练脚本（只依赖 gsplat 本体）
+    train_script: Path = PROJECT_ROOT / "backend" / "train" / "train_gsplat.py"
+    # gsplat 仓库（提供 examples，作参考；训练不再依赖）
     gsplat_repo: Path = PROJECT_ROOT / "third_party" / "gsplat"
     # COLMAP / GLOMAP 可执行文件（留空则从 PATH 查找）
     colmap_bin: str = "colmap"

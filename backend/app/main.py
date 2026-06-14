@@ -49,7 +49,7 @@ def health() -> dict:
         "status": "ok",
         "colmap": settings.resolve_colmap() is not None,
         "glomap": settings.resolve_glomap() is not None,
-        "trainer": settings.simple_trainer.exists(),
+        "trainer": settings.train_script.exists(),
     }
 
 

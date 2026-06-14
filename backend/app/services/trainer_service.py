@@ -63,7 +63,7 @@ async def run_gsplat(
 
     cmd = [
         settings.train_python,
-        settings.simple_trainer,
+        settings.train_script,
         strategy,
         "--data_dir", data_dir,
         "--data_factor", str(data_factor),
@@ -72,7 +72,7 @@ async def run_gsplat(
         "--save_ply",
         "--disable_viewer",
     ]
-    await run_command(cmd, cwd=settings.gsplat_repo, on_line=on_line)
+    await run_command(cmd, cwd=settings.train_script.parent, on_line=on_line)
 
     ply = _find_latest_ply(result_dir)
     if ply is None:
