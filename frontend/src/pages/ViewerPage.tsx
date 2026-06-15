@@ -1,12 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import SplatViewer, { type ViewerStats } from '@/components/SplatViewer';
 import { useStore } from '@/store/useStore';
+import { fetchModels } from '@/api/client';
+import type { SplatModel } from '@/types';
 
 export default function ViewerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const model = useStore((s) => (id ? s.getModelById(id) : undefined));
+  const storeModel = useStore((s) => (id ? s.getModelById(id) : undefined));
+  const [model, setModel] = useState<SplatModel | undefined>(storeModel);
+
+  // store 中找不到（如从任务完成跳转的后端生成模型 / 刷新页面）则回退到后端查询
+  useEffect(() => {
+    if (storeModel) {
+      setModel(storeModel);
+    } else if (id) {
+      fetchModels().then((ms) => setModel(ms.find((m) => m.id === id))).catch(() => {});
+    }
+  }, [id, storeModel]);
 
   const [stats, setStats] = useState<ViewerStats>({ fps: 0, splatCount: 0 });
   const [loaded, setLoaded] = useState(false);
