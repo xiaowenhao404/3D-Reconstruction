@@ -117,20 +117,43 @@ export default function SplatViewer({
       onError?.(e instanceof Error ? e.message : String(e));
     }
 
-    /** 计算模型包围盒，把相机摆到能完整看到模型的位置，并记录中心点 */
+    /** 抗离群值的自动取景：采样高斯中心，取中位数为中心、95 分位距离为半径，
+     *  忽略训练产生的远处"漂浮"高斯，避免包围盒被撑大导致相机过远而看不到模型。 */
     function autoFrame() {
-      const box: THREE.Box3 = viewer.splatMesh.computeBoundingBox(true);
-      const center = new THREE.Vector3();
-      const size = new THREE.Vector3();
-      box.getCenter(center);
-      box.getSize(size);
+      const mesh = viewer.splatMesh;
+      const count: number = mesh?.getSplatCount?.() ?? 0;
+      if (!count) return;
+      const sampleN = Math.min(count, 20000);
+      const stride = Math.max(1, Math.floor(count / sampleN));
+      const xs: number[] = [];
+      const ys: number[] = [];
+      const zs: number[] = [];
+      const tmp = new THREE.Vector3();
+      for (let i = 0; i < count; i += stride) {
+        mesh.getSplatCenter(i, tmp, true);
+        xs.push(tmp.x);
+        ys.push(tmp.y);
+        zs.push(tmp.z);
+      }
+      const median = (a: number[]) => {
+        const s = [...a].sort((p, q) => p - q);
+        return s[Math.floor(s.length / 2)];
+      };
+      const center = new THREE.Vector3(median(xs), median(ys), median(zs));
+      const dists = xs.map((_, i) =>
+        Math.hypot(xs[i] - center.x, ys[i] - center.y, zs[i] - center.z),
+      );
+      dists.sort((p, q) => p - q);
+      const radius = dists[Math.floor(dists.length * 0.95)] || 1;
       frameCenterRef.current.copy(center);
-      const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+
       const cam = viewer.camera;
       const fov = ((cam.fov ?? 60) * Math.PI) / 180;
       const dist = (radius / Math.sin(fov / 2)) * 1.3;
       const dir = new THREE.Vector3(0.5, 0.3, 1).normalize();
       cam.position.copy(center.clone().add(dir.multiplyScalar(dist)));
+      cam.near = Math.max(dist / 1000, 0.01);
+      cam.far = dist * 10;
       cam.lookAt(center);
       cam.updateProjectionMatrix?.();
     }
