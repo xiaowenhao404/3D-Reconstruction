@@ -21,7 +21,21 @@ export default function JobProgress({ jobId }: Readonly<{ jobId: string }>) {
     // 先拉一次当前状态，再订阅增量
     getJob(jobId).then(setJob).catch(() => {});
     const stop = subscribeJob(jobId, setJob, () => getJob(jobId).then(setJob).catch(() => {}));
-    return stop;
+    // 轮询兜底：万一 SSE 经代理被缓冲，仍能更新进度
+    const poll = setInterval(() => {
+      getJob(jobId)
+        .then((j) => {
+          setJob(j);
+          if (j.status === 'succeeded' || j.status === 'failed' || j.status === 'canceled') {
+            clearInterval(poll);
+          }
+        })
+        .catch(() => {});
+    }, 2500);
+    return () => {
+      stop();
+      clearInterval(poll);
+    };
   }, [jobId]);
 
   if (!job) return <div className="text-slate-400">连接任务中…</div>;
