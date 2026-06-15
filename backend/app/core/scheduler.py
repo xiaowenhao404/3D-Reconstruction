@@ -102,18 +102,21 @@ class JobScheduler:
         output_dir = Path(job.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # ── 阶段 0：准备图像 ──
-        await self._set_stage(job, JobStage.UPLOAD, 0, "准备图像")
+        # ── 阶段 1：SfM（若数据已含相机位姿 sparse/0 则跳过，直接训练） ──
         images_dir = self._resolve_images(req)
         await self._set_stage(job, JobStage.UPLOAD, 100, "图像就绪")
 
-        # ── 阶段 1：SfM ──
-        async def sfm_progress(p: float, msg: str) -> None:
-            await self._set_stage(job, JobStage.SFM, p, msg)
+        pre_posed = images_dir.parent / "sparse" / "0"
+        if pre_posed.exists():
+            await self._set_stage(job, JobStage.SFM, 100, "检测到已有相机位姿，跳过 SfM")
+            data_dir = images_dir.parent
+        else:
+            async def sfm_progress(p: float, msg: str) -> None:
+                await self._set_stage(job, JobStage.SFM, p, msg)
 
-        data_dir = await sfm_service.run_sfm(
-            images_dir, output_dir / "colmap", progress=sfm_progress
-        )
+            data_dir = await sfm_service.run_sfm(
+                images_dir, output_dir / "colmap", progress=sfm_progress
+            )
 
         # ── 阶段 2：训练 ──
         async def train_progress(p: float, msg: str) -> None:

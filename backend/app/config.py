@@ -72,15 +72,23 @@ class Settings(BaseSettings):
             d.mkdir(parents=True, exist_ok=True)
 
     def resolve_colmap(self) -> str | None:
-        """返回可用的 colmap 路径，找不到返回 None。"""
-        return shutil.which(self.colmap_bin) or (
+        """返回可用的 colmap 路径：优先配置/PATH，其次内置 third_party。"""
+        found = shutil.which(self.colmap_bin) or (
             self.colmap_bin if Path(self.colmap_bin).exists() else None
         )
+        if found:
+            return found
+        bundled = self.third_party_dir / "colmap_dist" / "bin" / "colmap.exe"
+        return str(bundled) if bundled.exists() else None
 
     def resolve_glomap(self) -> str | None:
-        return shutil.which(self.glomap_bin) or (
+        found = shutil.which(self.glomap_bin) or (
             self.glomap_bin if Path(self.glomap_bin).exists() else None
         )
+        if found:
+            return found
+        bundled = self.third_party_dir / "colmap_dist" / "bin" / "glomap.exe"
+        return str(bundled) if bundled.exists() else None
 
 
 @lru_cache
