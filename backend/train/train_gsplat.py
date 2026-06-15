@@ -164,7 +164,9 @@ def main() -> int:
     means_sched = torch.optim.lr_scheduler.ExponentialLR(
         optimizers["means"], gamma=0.01 ** (1.0 / args.max_steps)
     )
-    strategy = MCMCStrategy(cap_max=args.cap_max, verbose=False)
+    # 高斯上限随步数缩放：短训练用更少但更充分优化的高斯，避免欠优化的尖刺/漂浮
+    eff_cap = min(args.cap_max, max(80_000, args.max_steps * 20))
+    strategy = MCMCStrategy(cap_max=eff_cap, verbose=False)
     strategy.check_sanity(splats, optimizers)
     state = strategy.initialize_state()
     win = gaussian_window(11, 1.5, device)
@@ -219,14 +221,28 @@ def main() -> int:
                 flush=True,
             )
 
-    # ── 导出 PLY ──
+    # ── 导出 PLY（导出前剔除漂浮物/尖刺，提升可视质量） ──
     ply_path = result_dir / "ply" / f"point_cloud_{args.max_steps}.ply"
     if args.save_ply:
-        export_splats(
-            means=splats["means"], scales=splats["scales"], quats=splats["quats"],
-            opacities=splats["opacities"], sh0=splats["sh0"], shN=splats["shN"],
-            format="ply", save_to=str(ply_path),
-        )
+        with torch.no_grad():
+            op = torch.sigmoid(splats["opacities"])               # 不透明度
+            sc = torch.exp(splats["scales"]).amax(dim=1)          # 各高斯最大轴尺度
+            keep = op > 0.05                                       # 剔除近全透明的飞散物
+            if int(keep.sum()) > 1000:                            # 再剔除极端拉长的尖刺
+                limit = torch.quantile(sc[keep].float(), 0.995) * 3.0
+                keep = keep & (sc < limit)
+            idx = keep.nonzero().squeeze(1)
+            print(
+                f"prune floaters: {splats['means'].shape[0]} -> {idx.numel()}",
+                flush=True,
+            )
+            sel = lambda t: t[idx]  # noqa: E731
+            export_splats(
+                means=sel(splats["means"]), scales=sel(splats["scales"]),
+                quats=sel(splats["quats"]), opacities=sel(splats["opacities"]),
+                sh0=sel(splats["sh0"]), shN=sel(splats["shN"]),
+                format="ply", save_to=str(ply_path),
+            )
     elapsed = time.time() - t0
     print(f"DONE in {elapsed:.1f}s -> {ply_path}", flush=True)
     return 0

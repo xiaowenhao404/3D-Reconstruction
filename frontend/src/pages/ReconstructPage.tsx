@@ -7,9 +7,9 @@ import { createJob, fetchDatasets, uploadFiles } from '@/api/client';
 import type { CreateJobRequest, Dataset } from '@/types';
 
 const STEP_PRESETS = [
-  { v: 3000, label: '预览 3k (仅测流程, 质量差)' },
-  { v: 7000, label: '快速 7k (推荐)' },
-  { v: 30000, label: '高质量 30k' },
+  { v: 3000, label: '预览 3k (仅测流程)' },
+  { v: 7000, label: '快速 7k (偏软)' },
+  { v: 30000, label: '高质量 30k (推荐, 清晰)' },
 ];
 
 export default function ReconstructPage() {
@@ -18,7 +18,7 @@ export default function ReconstructPage() {
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ upload_id: string; num_images: number } | null>(null);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
-  const [maxSteps, setMaxSteps] = useState(7000);
+  const [maxSteps, setMaxSteps] = useState(30000);
   const [dataFactor, setDataFactor] = useState(4);
   const [outputDir, setOutputDir] = useState('');
   const [jobId, setJobId] = useState<string | null>(null);
