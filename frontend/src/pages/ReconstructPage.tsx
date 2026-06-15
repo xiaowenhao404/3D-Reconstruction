@@ -7,9 +7,9 @@ import { createJob, fetchDatasets, uploadFiles } from '@/api/client';
 import type { CreateJobRequest, Dataset } from '@/types';
 
 const STEP_PRESETS = [
-  { v: 3000, label: '预览 (3k, 最快)' },
-  { v: 7000, label: '快速 (7k)' },
-  { v: 30000, label: '高质量 (30k)' },
+  { v: 3000, label: '预览 3k (仅测流程, 质量差)' },
+  { v: 7000, label: '快速 7k (推荐)' },
+  { v: 30000, label: '高质量 30k' },
 ];
 
 export default function ReconstructPage() {
