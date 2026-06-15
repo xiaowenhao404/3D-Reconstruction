@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import datasets, fs, import_model, jobs, models
+from app.api import datasets, fs, import_model, jobs, models, uploads
 from app.config import get_settings
 from app.core.scheduler import scheduler
 
@@ -30,6 +30,7 @@ app.include_router(import_model.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
+app.include_router(uploads.router, prefix="/api")
 app.include_router(fs.router, prefix="/api")
 
 

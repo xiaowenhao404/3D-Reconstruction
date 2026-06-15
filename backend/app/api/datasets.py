@@ -22,24 +22,36 @@ def _scene_type(name: str) -> str:
 
 @router.get("")
 def list_datasets() -> list[dict]:
-    """扫描 datasets 目录，返回含 images/ 子目录的数据集。"""
+    """扫描 datasets 目录（含 1-2 层嵌套），返回含 images/ 子目录的数据集。"""
     settings = get_settings()
     out: list[dict] = []
     root = settings.datasets_dir
     if not root.exists():
         return out
-    for d in sorted(root.iterdir()):
-        images = d / "images"
-        if d.is_dir() and images.exists():
+
+    def add_scene(scene_dir: Path, scene_id: str) -> None:
+        images = scene_dir / "images"
+        if images.exists():
             n = count_images(images)
             if n > 0:
                 out.append({
-                    "id": d.name,
-                    "name": d.name,
+                    "id": scene_id,
+                    "name": scene_id,
                     "num_images": n,
-                    "scene_type": _scene_type(d.name),
+                    "scene_type": _scene_type(scene_id),
+                    "has_poses": (scene_dir / "sparse" / "0").exists(),
                     "thumb": None,
                 })
+
+    for d in sorted(root.iterdir()):
+        if not d.is_dir():
+            continue
+        if (d / "images").exists():
+            add_scene(d, d.name)
+        else:  # 向下再找一层（如 tandt/train）
+            for sub in sorted(d.iterdir()):
+                if sub.is_dir():
+                    add_scene(sub, f"{d.name}/{sub.name}")
     return out
 
 
